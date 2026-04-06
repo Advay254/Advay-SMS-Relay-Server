@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SMS Relay — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --bg0:#040608;--bg1:#080c10;--bg2:#0d1117;
+    --card:rgba(255,255,255,0.04);--stroke:rgba(255,255,255,0.08);
+    --text:#e8edf2;--muted:rgba(232,237,242,0.55);
+    --accent:#00d4aa;--accent2:#0088ff;--danger:#ff4c6a;
+    --glow:rgba(0,212,170,0.18);
+    --mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{
+    font-family:var(--sans);background:var(--bg0);color:var(--text);
+    display:flex;align-items:center;justify-content:center;
+    position:relative;
+  }
+
+  /* animated grid bg */
+  .grid-bg{
+    position:fixed;inset:0;
+    background-image:
+      linear-gradient(rgba(0,212,170,0.04) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,212,170,0.04) 1px,transparent 1px);
+    background-size:40px 40px;
+    animation:gridShift 20s linear infinite;
+    pointer-events:none;
+  }
+  @keyframes gridShift{from{background-position:0 0}to{background-position:40px 40px}}
+
+  /* radial glow */
+  .glow-orb{
+    position:fixed;width:600px;height:600px;
+    background:radial-gradient(circle,rgba(0,212,170,0.08),transparent 70%);
+    top:50%;left:50%;transform:translate(-50%,-50%);
+    pointer-events:none;animation:pulse 4s ease-in-out infinite alternate;
+  }
+  @keyframes pulse{from{opacity:0.6;transform:translate(-50%,-50%) scale(1)}
+                   to{opacity:1;transform:translate(-50%,-50%) scale(1.15)}}
+
+  /* card */
+  .card{
+    position:relative;z-index:10;
+    width:min(420px,calc(100vw - 40px));
+    background:var(--bg2);
+    border:1px solid var(--stroke);
+    border-radius:16px;
+    padding:48px 40px 44px;
+    box-shadow:0 0 0 1px rgba(0,212,170,0.06),
+               0 32px 80px rgba(0,0,0,0.6),
+               inset 0 1px 0 rgba(255,255,255,0.06);
+    animation:slideUp 0.5s cubic-bezier(0.2,0.8,0.2,1) both;
+  }
+  @keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+
+  .logo{
+    display:flex;align-items:center;gap:12px;margin-bottom:36px;
+  }
+  .logo-icon{
+    width:40px;height:40px;border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;box-shadow:0 0 24px var(--glow);
+  }
+  .logo-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted)}
+  .logo-sub{font-size:10px;color:rgba(255,255,255,0.3);margin-top:1px;font-family:var(--mono);letter-spacing:0.08em}
+
+  h1{font-size:22px;font-weight:600;letter-spacing:-0.02em;margin-bottom:6px}
+  .subtitle{font-size:13px;color:var(--muted);margin-bottom:32px;line-height:1.5}
+
+  .field{margin-bottom:20px}
+  label{display:block;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-family:var(--mono)}
+  input{
+    width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--stroke);
+    border-radius:8px;padding:12px 14px;font-size:14px;color:var(--text);
+    font-family:var(--sans);outline:none;transition:border-color 0.2s,box-shadow 0.2s;
+  }
+  input:focus{border-color:rgba(0,212,170,0.5);box-shadow:0 0 0 3px rgba(0,212,170,0.08)}
+  input::placeholder{color:rgba(255,255,255,0.2)}
+
+  .btn{
+    width:100%;padding:13px;border-radius:8px;border:none;cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#020f0b;font-weight:700;font-size:14px;letter-spacing:0.02em;
+    font-family:var(--sans);transition:opacity 0.2s,transform 0.15s,box-shadow 0.2s;
+    box-shadow:0 4px 24px rgba(0,212,170,0.25);margin-top:8px;
+  }
+  .btn:hover{opacity:0.92;transform:translateY(-1px);box-shadow:0 8px 32px rgba(0,212,170,0.35)}
+  .btn:active{transform:translateY(0)}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+
+  .error-msg{
+    background:rgba(255,76,106,0.1);border:1px solid rgba(255,76,106,0.25);
+    color:#ff6b83;border-radius:8px;padding:11px 14px;font-size:13px;
+    margin-bottom:20px;display:none;animation:shake 0.35s ease;
+  }
+  .error-msg.show{display:block}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+  .spinner{
+    display:inline-block;width:14px;height:14px;
+    border:2px solid rgba(2,15,11,0.4);border-top-color:#020f0b;
+    border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:6px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .footer{margin-top:28px;text-align:center;font-size:11px;color:rgba(255,255,255,0.2);font-family:var(--mono)}
+  .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);animation:blink 1.4s ease-in-out infinite;margin-right:6px;vertical-align:middle}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="glow-orb"></div>
+
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">📡</div>
+    <div>
+      <div class="logo-text">SMS Relay</div>
+      <div class="logo-sub">ADMIN CONSOLE</div>
+    </div>
+  </div>
+
+  <h1>Sign in</h1>
+  <p class="subtitle">Access the relay dashboard and configuration panel.</p>
+
+  <div class="error-msg" id="err"></div>
+
+  <div class="field">
+    <label>Username</label>
+    <input type="text" id="username" autocomplete="username" placeholder="admin" autofocus/>
+  </div>
+  <div class="field">
+    <label>Password</label>
+    <input type="password" id="password" autocomplete="current-password" placeholder="••••••••"/>
+  </div>
+
+  <button class="btn" id="loginBtn" onclick="doLogin()">Sign In</button>
+
+  <div class="footer"><span class="dot"></span>Secure session · Rate limited</div>
+</div>
+
+<script>
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  async function doLogin() {
+    const btn = document.getElementById('loginBtn');
+    const errEl = document.getElementById('err');
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    if (!username || !password) {
+      showError('Please enter username and password.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Signing in…';
+    errEl.classList.remove('show');
+
+    try {
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        btn.innerHTML = '✓ Redirecting…';
+        window.location.href = '/dashboard';
+      } else {
+        showError(data.error || 'Login failed.');
+        btn.disabled = false;
+        btn.innerHTML = 'Sign In';
+      }
+    } catch (e) {
+      showError('Network error. Please try again.');
+      btn.disabled = false;
+      btn.innerHTML = 'Sign In';
+    }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('err');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+</script>
+</body>
+</html>

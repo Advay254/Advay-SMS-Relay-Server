@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SMS Relay — Webhooks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/shared.css"/>
+<style>
+  .webhook-card{margin-bottom:20px}
+  .webhook-header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+  .webhook-badge{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .webhook-badge.n8n{background:rgba(0,136,255,0.15);border:1px solid rgba(0,136,255,0.2)}
+  .webhook-badge.md{background:rgba(0,212,170,0.15);border:1px solid rgba(0,212,170,0.2)}
+  .webhook-name{font-size:15px;font-weight:600}
+  .webhook-desc{font-size:12px;color:var(--muted);margin-top:2px}
+  .url-field{display:flex;gap:10px;align-items:flex-end}
+  .url-field .input-wrap{flex:1}
+  .saved-ok{color:var(--accent);font-size:12px;font-family:var(--mono);animation:fadeIn .3s}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+  .api-info{background:var(--bg3,#111620);border:1px solid var(--stroke);border-radius:var(--r12);padding:20px;margin-bottom:20px}
+  .api-info h3{font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:14px;font-family:var(--mono)}
+  .endpoint-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--stroke)}
+  .endpoint-row:last-child{border-bottom:none}
+  .method{font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 7px;border-radius:4px;flex-shrink:0}
+  .method.post{background:rgba(0,212,170,0.12);color:var(--accent)}
+  .method.get{background:rgba(0,136,255,0.12);color:var(--accent2)}
+  .ep-path{font-family:var(--mono);font-size:12px;color:var(--text)}
+  .ep-desc{font-size:12px;color:var(--muted);margin-left:auto}
+
+  .copy-btn{padding:6px 12px;font-size:11px;font-family:var(--mono);cursor:pointer;border-radius:6px;border:1px solid var(--stroke);background:transparent;color:var(--muted);transition:all .2s;flex-shrink:0}
+  .copy-btn:hover{color:var(--text);border-color:var(--stroke2)}
+
+  .key-display{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,0.3);border:1px solid var(--stroke);border-radius:var(--r8);padding:10px 14px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .key-mask{letter-spacing:0.15em;flex:1}
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-icon">📡</div>
+    <div class="sidebar-label">SMS Relay</div>
+  </div>
+  <a href="/dashboard" class="nav-item"><span class="nav-icon">⚡</span>Dashboard</a>
+  <a href="/webhooks" class="nav-item active"><span class="nav-icon">🔗</span>Webhooks</a>
+  <a href="/health-page" class="nav-item"><span class="nav-icon">💚</span>Health</a>
+  <div class="sidebar-bottom">
+    <a class="nav-item" onclick="logout()" style="cursor:pointer"><span class="nav-icon">🚪</span>Sign Out</a>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title">Webhook Settings</div>
+    <div class="topbar-right">
+      <span id="loadStatus" style="font-size:12px;color:var(--muted);font-family:var(--mono)">Loading…</span>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- n8n Webhook -->
+    <p class="section-title">Destination Webhooks</p>
+    <div class="card webhook-card">
+      <div class="webhook-header">
+        <div class="webhook-badge n8n">🔄</div>
+        <div>
+          <div class="webhook-name">n8n Webhook URL</div>
+          <div class="webhook-desc">Server forwards inbound SMS here for processing</div>
+        </div>
+      </div>
+      <label class="label">Webhook URL</label>
+      <div class="url-field">
+        <div class="input-wrap">
+          <input class="input" type="url" id="n8nUrl" placeholder="https://your-n8n.app/webhook/xxxx" autocomplete="off"/>
+        </div>
+        <button class="btn btn-primary" onclick="save('n8n_webhook_url','n8nUrl','n8nSaved')">Save</button>
+      </div>
+      <div id="n8nSaved" class="saved-ok" style="margin-top:10px;display:none">✓ Saved successfully</div>
+      <div style="margin-top:14px;font-size:12px;color:var(--muted);line-height:1.7">
+        <strong style="color:var(--text)">Payload sent to n8n:</strong><br/>
+        <code style="font-family:var(--mono);font-size:11px;color:var(--accent)">{ name, phoneNumber, message, conversationHistory, historyTokens, timestamp }</code><br/>
+        <br/>Must include header: <code style="font-family:var(--mono);font-size:11px">x-api-key: &lt;API_KEY&gt;</code>
+      </div>
+    </div>
+
+    <!-- MacroDroid Webhook -->
+    <div class="card webhook-card">
+      <div class="webhook-header">
+        <div class="webhook-badge md">📱</div>
+        <div>
+          <div class="webhook-name">MacroDroid Webhook URL</div>
+          <div class="webhook-desc">Server pushes replies to MacroDroid for SMS sending</div>
+        </div>
+      </div>
+      <label class="label">Webhook URL</label>
+      <div class="url-field">
+        <div class="input-wrap">
+          <input class="input" type="url" id="mdUrl" placeholder="https://trigger.macrodroid.com/xxxx/send-sms" autocomplete="off"/>
+        </div>
+        <button class="btn btn-primary" onclick="save('macrodroid_webhook_url','mdUrl','mdSaved')">Save</button>
+      </div>
+      <div id="mdSaved" class="saved-ok" style="margin-top:10px;display:none">✓ Saved successfully</div>
+      <div style="margin-top:14px;font-size:12px;color:var(--muted);line-height:1.7">
+        <strong style="color:var(--text)">Payload sent to MacroDroid:</strong><br/>
+        <code style="font-family:var(--mono);font-size:11px;color:var(--accent)">{ phoneNumber, message, messageId }</code><br/>
+        <br/>Must include header: <code style="font-family:var(--mono);font-size:11px">x-api-key: &lt;API_KEY&gt;</code>
+      </div>
+    </div>
+
+    <!-- Server Endpoints -->
+    <p class="section-title">This Server's Endpoints</p>
+    <div class="api-info">
+      <h3>Incoming Webhooks (authenticated via x-api-key header)</h3>
+      <div class="endpoint-row">
+        <span class="method post">POST</span>
+        <span class="ep-path">/api/sms</span>
+        <button class="copy-btn" onclick="copyEndpoint('/api/sms')">Copy</button>
+        <span class="ep-desc">MacroDroid → Server (inbound SMS)</span>
+      </div>
+      <div class="endpoint-row">
+        <span class="method post">POST</span>
+        <span class="ep-path">/api/reply</span>
+        <button class="copy-btn" onclick="copyEndpoint('/api/reply')">Copy</button>
+        <span class="ep-desc">n8n → Server (reply to send)</span>
+      </div>
+      <div class="endpoint-row">
+        <span class="method get">GET</span>
+        <span class="ep-path">/api/pending-replies</span>
+        <button class="copy-btn" onclick="copyEndpoint('/api/pending-replies')">Copy</button>
+        <span class="ep-desc">MacroDroid polls for pending replies</span>
+      </div>
+      <div class="endpoint-row">
+        <span class="method post">POST</span>
+        <span class="ep-path">/api/reply-delivered</span>
+        <button class="copy-btn" onclick="copyEndpoint('/api/reply-delivered')">Copy</button>
+        <span class="ep-desc">MacroDroid confirms delivery</span>
+      </div>
+      <div class="endpoint-row">
+        <span class="method get">GET</span>
+        <span class="ep-path">/api/health</span>
+        <button class="copy-btn" onclick="copyEndpoint('/api/health')">Copy</button>
+        <span class="ep-desc">Public health check (no auth)</span>
+      </div>
+    </div>
+
+    <!-- API Key -->
+    <p class="section-title">API Key</p>
+    <div class="card">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+        Include this key in the <code style="font-family:var(--mono);font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">x-api-key</code> header on ALL requests to this server (MacroDroid and n8n). Set via <code style="font-family:var(--mono);font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">API_KEY</code> environment variable.
+      </p>
+      <div class="key-display">
+        <div class="key-mask" id="keyDisplay">••••••••••••••••••••••••••••••••</div>
+        <button class="copy-btn" onclick="toggleKey()" id="toggleBtn">Show</button>
+        <button class="copy-btn" onclick="copyKey()">Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+  let keyVisible = false;
+  const apiKey = '••••••••••••••••••••••••••••••••'; // never expose via DOM — user must check env
+
+  async function loadSettings() {
+    try {
+      const r = await fetch('/api/ui/settings');
+      if (!r.ok) { location.href = '/login'; return; }
+      const settings = await r.json();
+      const map = {};
+      settings.forEach(s => map[s.key] = s.value);
+      if (map.n8n_webhook_url) document.getElementById('n8nUrl').value = map.n8n_webhook_url;
+      if (map.macrodroid_webhook_url) document.getElementById('mdUrl').value = map.macrodroid_webhook_url;
+      document.getElementById('loadStatus').textContent = 'Settings loaded';
+    } catch(e) {
+      document.getElementById('loadStatus').textContent = 'Load error';
+    }
+  }
+
+  async function save(key, inputId, savedId) {
+    const val = document.getElementById(inputId).value.trim();
+    if (!val) { toast('URL cannot be empty', 'err'); return; }
+    try {
+      new URL(val); // validate URL
+    } catch { toast('Invalid URL format', 'err'); return; }
+
+    try {
+      const r = await fetch('/api/ui/settings', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ key, value: val })
+      });
+      if (r.ok) {
+        const el = document.getElementById(savedId);
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 3000);
+        toast('Saved', 'ok');
+      } else {
+        toast('Save failed', 'err');
+      }
+    } catch { toast('Network error', 'err'); }
+  }
+
+  function toggleKey() {
+    keyVisible = !keyVisible;
+    const el = document.getElementById('keyDisplay');
+    const btn = document.getElementById('toggleBtn');
+    el.textContent = keyVisible ? '(Set via API_KEY env variable — never exposed here for security)' : '••••••••••••••••••••••••••••••••';
+    btn.textContent = keyVisible ? 'Hide' : 'Show';
+  }
+
+  function copyKey() {
+    toast('API key is set via API_KEY env variable — copy from your Render dashboard', 'ok');
+  }
+
+  function copyEndpoint(path) {
+    const full = window.location.origin + path;
+    navigator.clipboard.writeText(full).then(() => toast('Copied: ' + full, 'ok'));
+  }
+
+  function toast(msg, type='ok') {
+    const wrap = document.getElementById('toastWrap');
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `<span>${type==='ok'?'✓':'✕'}</span> ${msg}`;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  async function logout() {
+    await fetch('/logout',{method:'POST'});
+    location.href = '/login';
+  }
+
+  loadSettings();
+</script>
+</body>
+</html>

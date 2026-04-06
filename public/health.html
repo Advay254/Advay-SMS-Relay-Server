@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SMS Relay — System Health</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/shared.css"/>
+<style>
+  .health-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+  @media(max-width:680px){.health-grid{grid-template-columns:1fr}}
+
+  .health-item{background:var(--bg2);border:1px solid var(--stroke);border-radius:var(--r12);padding:20px;display:flex;align-items:center;gap:16px}
+  .health-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .health-icon.ok{background:rgba(0,212,170,0.1);border:1px solid rgba(0,212,170,0.2)}
+  .health-icon.warn{background:rgba(255,184,48,0.1);border:1px solid rgba(255,184,48,0.2)}
+  .health-icon.err{background:rgba(255,76,106,0.1);border:1px solid rgba(255,76,106,0.2)}
+  .health-label{font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:4px;font-family:var(--mono)}
+  .health-value{font-size:16px;font-weight:600;color:var(--text)}
+  .health-sub{font-size:11px;color:var(--muted);margin-top:3px}
+
+  .retry-table-wrap{margin-top:8px}
+  .queue-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--stroke)}
+  .queue-row:last-child{border-bottom:none}
+  .queue-label{font-size:13px;color:var(--muted)}
+  .queue-value{font-family:var(--mono);font-size:13px;font-weight:700}
+
+  .timeline{display:flex;flex-direction:column;gap:8px}
+  .tl-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:8px}
+  .tl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .tl-dot.ok{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .tl-dot.none{background:var(--muted2)}
+  .tl-label{font-size:12px;color:var(--muted);flex:1}
+  .tl-time{font-family:var(--mono);font-size:11px;color:var(--text)}
+
+  .uptime-bar-wrap{margin-top:12px}
+  .uptime-bar{height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden}
+  .uptime-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;transition:width 1s ease}
+
+  .refresh-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted2);font-family:var(--mono)}
+  .spin-sm{width:10px;height:10px;border:1.5px solid rgba(255,255,255,0.15);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-icon">📡</div>
+    <div class="sidebar-label">SMS Relay</div>
+  </div>
+  <a href="/dashboard" class="nav-item"><span class="nav-icon">⚡</span>Dashboard</a>
+  <a href="/webhooks" class="nav-item"><span class="nav-icon">🔗</span>Webhooks</a>
+  <a href="/health-page" class="nav-item active"><span class="nav-icon">💚</span>Health</a>
+  <div class="sidebar-bottom">
+    <a class="nav-item" onclick="logout()" style="cursor:pointer"><span class="nav-icon">🚪</span>Sign Out</a>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title">System Health</div>
+    <div class="topbar-right">
+      <div class="refresh-badge">
+        <div class="spin-sm" id="spinner"></div>
+        <span id="lastUpdated">Loading…</span>
+      </div>
+      <button class="btn btn-ghost" onclick="loadAll()" style="font-size:12px;padding:7px 14px">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Status grid -->
+    <p class="section-title">System Status</p>
+    <div class="health-grid">
+      <div class="health-item" id="dbCard">
+        <div class="health-icon" id="dbIcon">🗄️</div>
+        <div>
+          <div class="health-label">Database</div>
+          <div class="health-value" id="dbStatus">Checking…</div>
+          <div class="health-sub">PostgreSQL / Supabase</div>
+        </div>
+      </div>
+      <div class="health-item" id="n8nCard">
+        <div class="health-icon" id="n8nIcon">🔄</div>
+        <div>
+          <div class="health-label">n8n Webhook</div>
+          <div class="health-value" id="n8nStatus">—</div>
+          <div class="health-sub" id="n8nSub">Configure in Webhooks page</div>
+        </div>
+      </div>
+      <div class="health-item" id="mdCard">
+        <div class="health-icon" id="mdIcon">📱</div>
+        <div>
+          <div class="health-label">MacroDroid</div>
+          <div class="health-value" id="mdStatus">—</div>
+          <div class="health-sub" id="mdSub">Configure in Webhooks page</div>
+        </div>
+      </div>
+      <div class="health-item">
+        <div class="health-icon ok">⏱️</div>
+        <div style="flex:1">
+          <div class="health-label">Uptime</div>
+          <div class="health-value" id="uptimeVal">—</div>
+          <div class="uptime-bar-wrap">
+            <div class="uptime-bar"><div class="uptime-fill" id="uptimeFill" style="width:0%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Retry Queue -->
+    <p class="section-title">Retry Queue</p>
+    <div class="card" style="margin-bottom:24px">
+      <div class="queue-row">
+        <span class="queue-label">📥 Inbound pending (→ n8n)</span>
+        <span class="queue-value" id="qInPend">—</span>
+      </div>
+      <div class="queue-row">
+        <span class="queue-label">📤 Outbound pending (→ MacroDroid)</span>
+        <span class="queue-value" id="qOutPend">—</span>
+      </div>
+      <div class="queue-row">
+        <span class="queue-label">✅ Forwarded to n8n (all time)</span>
+        <span class="queue-value" id="qInFwd">—</span>
+      </div>
+      <div class="queue-row">
+        <span class="queue-label">✅ Delivered to MacroDroid (all time)</span>
+        <span class="queue-value" id="qOutDel">—</span>
+      </div>
+      <div class="queue-row">
+        <span class="queue-label">❌ Failed (inbound)</span>
+        <span class="queue-value" id="qInFail" style="color:var(--danger)">—</span>
+      </div>
+      <div class="queue-row">
+        <span class="queue-label">❌ Failed (outbound)</span>
+        <span class="queue-value" id="qOutFail" style="color:var(--danger)">—</span>
+      </div>
+    </div>
+
+    <!-- Last sync times -->
+    <p class="section-title">Last Successful Sync</p>
+    <div class="card">
+      <div class="timeline" id="timeline">
+        <div class="tl-row"><div class="tl-dot none"></div><div class="tl-label">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- Retry policy info -->
+    <p class="section-title" style="margin-top:24px">Retry Policy</p>
+    <div class="card" style="font-size:13px;color:var(--muted);line-height:1.8">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <div style="color:var(--text);font-weight:600;margin-bottom:8px">Retry Interval</div>
+          Every <strong style="color:var(--accent);font-family:var(--mono)">10 minutes</strong><br/>
+          Max retries: <strong style="font-family:var(--mono)">12</strong> (2 hours)<br/>
+          After max: marked <strong style="color:var(--danger)">failed</strong>
+        </div>
+        <div>
+          <div style="color:var(--text);font-weight:600;margin-bottom:8px">Scope</div>
+          MacroDroid → Server → n8n<br/>
+          n8n → Server → MacroDroid<br/>
+          Worker runs every 10 min
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+  async function loadAll() {
+    document.getElementById('spinner').style.display = 'inline-block';
+    try {
+      const r = await fetch('/api/ui/stats');
+      if (!r.ok) { location.href='/login'; return; }
+      const d = await r.json();
+
+      // DB health via uptime presence
+      setStatus('db', true, 'Connected', 'ok');
+
+      // n8n configured?
+      setStatus('n8n', d.n8nConfigured, d.n8nConfigured ? 'Configured' : 'Not configured', d.n8nConfigured ? 'ok' : 'warn');
+      document.getElementById('n8nSub').textContent = d.n8nConfigured ? 'Webhook URL registered' : 'Set URL in Webhooks page';
+
+      // MacroDroid configured?
+      setStatus('md', d.macrodroidConfigured, d.macrodroidConfigured ? 'Configured' : 'Not configured', d.macrodroidConfigured ? 'ok' : 'warn');
+      document.getElementById('mdSub').textContent = d.macrodroidConfigured ? 'Webhook URL registered' : 'Set URL in Webhooks page';
+
+      // Uptime
+      const uptimeSecs = d.uptime || 0;
+      document.getElementById('uptimeVal').textContent = formatUptime(uptimeSecs);
+      // Fill bar as % of 24h
+      const pct = Math.min(100, (uptimeSecs / 86400) * 100);
+      document.getElementById('uptimeFill').style.width = pct + '%';
+
+      // Queue stats
+      const ib = d.queue?.inbound || {};
+      const ob = d.queue?.outbound || {};
+      setText('qInPend', ib.pending || 0);
+      setText('qOutPend', ob.pending || 0);
+      setText('qInFwd', ib.forwarded || 0);
+      setText('qOutDel', ob.delivered || 0);
+      setText('qInFail', ib.failed || 0);
+      setText('qOutFail', ob.failed || 0);
+
+      // Timeline
+      const tl = document.getElementById('timeline');
+      const syncs = d.lastSync || {};
+      const rows = [
+        { label: 'Last inbound forwarded → n8n', ts: syncs.inbound },
+        { label: 'Last reply delivered → MacroDroid', ts: syncs.outbound },
+      ];
+      tl.innerHTML = rows.map(row => {
+        const hasTime = !!row.ts;
+        const timeStr = hasTime ? new Date(row.ts).toLocaleString() : 'Never';
+        return `<div class="tl-row">
+          <div class="tl-dot ${hasTime ? 'ok' : 'none'}"></div>
+          <div class="tl-label">${esc(row.label)}</div>
+          <div class="tl-time">${esc(timeStr)}</div>
+        </div>`;
+      }).join('');
+
+      document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    } catch(e) {
+      document.getElementById('lastUpdated').textContent = 'Update failed';
+    } finally {
+      document.getElementById('spinner').style.display = 'none';
+    }
+  }
+
+  function setStatus(id, ok, label, cls) {
+    document.getElementById(id+'Status').textContent = label;
+    const icon = document.getElementById(id+'Icon');
+    icon.parentElement.querySelector('.health-value').style.color = cls === 'ok' ? 'var(--accent)' : cls === 'warn' ? 'var(--warn)' : 'var(--danger)';
+    icon.className = 'health-icon ' + cls;
+  }
+
+  function setText(id, v) { const el = document.getElementById(id); if(el) el.textContent = v; }
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+  function formatUptime(secs) {
+    if (!secs) return '0s';
+    const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
+    if (h>0) return `${h}h ${m}m ${s}s`;
+    if (m>0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  async function logout() {
+    await fetch('/logout',{method:'POST'});
+    location.href = '/login';
+  }
+
+  loadAll();
+  setInterval(loadAll, 30000);
+</script>
+</body>
+</html>

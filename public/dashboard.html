@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SMS Relay — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/shared.css"/>
+<style>
+  .msg-row td{vertical-align:top}
+  .msg-dir{width:80px}
+  .msg-body{max-width:340px;word-break:break-word;color:var(--text)!important;line-height:1.45}
+  .msg-phone{font-family:var(--mono);font-size:11px}
+  .msg-time{font-family:var(--mono);font-size:11px;white-space:nowrap}
+
+  .live-indicator{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--accent);font-family:var(--mono)}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 6px var(--accent)}50%{opacity:0.4;box-shadow:none}}
+
+  .filter-bar{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+  .filter-btn{padding:6px 14px;border-radius:999px;font-size:12px;font-weight:600;font-family:var(--mono);cursor:pointer;border:1px solid var(--stroke);background:transparent;color:var(--muted);transition:all .2s}
+  .filter-btn.active{background:rgba(0,212,170,0.1);color:var(--accent);border-color:rgba(0,212,170,0.25)}
+  .filter-btn:hover:not(.active){color:var(--text);border-color:var(--stroke2)}
+
+  .empty{text-align:center;padding:60px 20px;color:var(--muted2);font-size:13px}
+  .empty-icon{font-size:40px;margin-bottom:12px}
+
+  .retry-badge{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,184,48,0.1);color:var(--warn);font-family:var(--mono);margin-left:6px}
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-icon">📡</div>
+    <div class="sidebar-label">SMS Relay</div>
+  </div>
+  <a href="/dashboard" class="nav-item active"><span class="nav-icon">⚡</span>Dashboard</a>
+  <a href="/webhooks" class="nav-item"><span class="nav-icon">🔗</span>Webhooks</a>
+  <a href="/health-page" class="nav-item"><span class="nav-icon">💚</span>Health</a>
+  <div class="sidebar-bottom">
+    <a class="nav-item" onclick="logout()" style="cursor:pointer"><span class="nav-icon">🚪</span>Sign Out</a>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title">Dashboard</div>
+    <div class="topbar-right">
+      <div class="live-indicator"><div class="live-dot"></div>LIVE</div>
+      <button class="btn btn-ghost" onclick="refresh()" style="font-size:12px;padding:7px 14px">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Stats -->
+    <p class="section-title">Overview</p>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Inbound Pending</div>
+        <div class="stat-value" id="sPendIn">—</div>
+        <div class="stat-sub">Awaiting n8n</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Outbound Pending</div>
+        <div class="stat-value" id="sPendOut">—</div>
+        <div class="stat-sub">Awaiting MacroDroid</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Forwarded</div>
+        <div class="stat-value" id="sForwarded">—</div>
+        <div class="stat-sub">Inbound → n8n</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Delivered</div>
+        <div class="stat-value" id="sDelivered">—</div>
+        <div class="stat-sub">Replies → MacroDroid</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Failed</div>
+        <div class="stat-value" id="sFailed" style="color:var(--danger)">—</div>
+        <div class="stat-sub">Max retries exceeded</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Uptime</div>
+        <div class="stat-value" id="sUptime" style="font-size:18px">—</div>
+        <div class="stat-sub">Current session</div>
+      </div>
+    </div>
+
+    <!-- Message log -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <p class="section-title" style="margin-bottom:0">Message Log</p>
+      <div class="filter-bar" style="margin-bottom:0">
+        <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+        <button class="filter-btn" onclick="setFilter('inbound',this)">Inbound</button>
+        <button class="filter-btn" onclick="setFilter('outbound',this)">Outbound</button>
+        <button class="filter-btn" onclick="setFilter('pending',this)">Pending</button>
+        <button class="filter-btn" onclick="setFilter('failed',this)">Failed</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Direction</th>
+              <th>Phone</th>
+              <th>Name</th>
+              <th>Message</th>
+              <th>Status</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="msgTable">
+            <tr><td colspan="6"><div class="empty"><div class="empty-icon">📭</div>Loading messages…</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+  let allMessages = [];
+  let currentFilter = 'all';
+  let autoRefresh;
+
+  async function fetchStats() {
+    try {
+      const r = await fetch('/api/ui/stats');
+      if (!ok(r)) return;
+      const d = await r.json();
+      const ib = d.queue?.inbound || {};
+      const ob = d.queue?.outbound || {};
+      const allFailed = (ib.failed||0) + (ob.failed||0);
+      const allFwd = (ib.forwarded||0);
+      const allDel = (ob.delivered||0);
+
+      setText('sPendIn', ib.pending || 0);
+      setText('sPendOut', ob.pending || 0);
+      setText('sForwarded', allFwd);
+      setText('sDelivered', allDel);
+      setText('sFailed', allFailed);
+      setText('sUptime', formatUptime(d.uptime));
+    } catch(e) { console.warn('stats err', e) }
+  }
+
+  async function fetchMessages() {
+    try {
+      const r = await fetch('/api/ui/messages?limit=200');
+      if (!ok(r)) return;
+      allMessages = await r.json();
+      renderTable();
+    } catch(e) { console.warn('msgs err', e) }
+  }
+
+  function renderTable() {
+    const filter = currentFilter;
+    const rows = allMessages.filter(m => {
+      if (filter === 'all') return true;
+      if (filter === 'inbound' || filter === 'outbound') return m.direction === filter;
+      return m.status === filter;
+    });
+
+    const tbody = document.getElementById('msgTable');
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="empty-icon">📭</div>No messages match this filter.</div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.map(m => {
+      const dirBadge = m.direction === 'inbound'
+        ? `<span class="badge badge-ok">↓ IN</span>`
+        : `<span class="badge badge-muted">↑ OUT</span>`;
+
+      const statusBadge = {
+        pending:   `<span class="badge badge-warn">pending</span>`,
+        forwarded: `<span class="badge badge-ok">forwarded</span>`,
+        delivered: `<span class="badge badge-ok">delivered</span>`,
+        failed:    `<span class="badge badge-err">failed</span>`,
+      }[m.status] || `<span class="badge badge-muted">${esc(m.status)}</span>`;
+
+      const retryBadge = m.retry_count > 0 ? `<span class="retry-badge">×${m.retry_count}</span>` : '';
+      const ts = new Date(m.created_at);
+      const timeStr = ts.toLocaleDateString()+' '+ts.toLocaleTimeString();
+      const phone = m.phone_number || '';
+      const masked = phone.length > 8 ? phone.slice(0,4)+'····'+phone.slice(-4) : phone;
+
+      return `<tr class="msg-row">
+        <td class="msg-dir">${dirBadge}</td>
+        <td><span class="msg-phone">${esc(masked)}</span></td>
+        <td><span style="font-size:12px;color:var(--muted)">${esc(m.name||'—')}</span></td>
+        <td><div class="msg-body">${esc(truncate(m.message,120))}</div></td>
+        <td>${statusBadge}${retryBadge}</td>
+        <td><span class="msg-time">${esc(timeStr)}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function setFilter(f, el) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    renderTable();
+  }
+
+  function refresh() {
+    fetchStats();
+    fetchMessages();
+    toast('Refreshed','ok');
+  }
+
+  async function logout() {
+    await fetch('/logout',{method:'POST'});
+    location.href = '/login';
+  }
+
+  function ok(r) { return r.status < 400; }
+  function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+  function truncate(s, n) { s = String(s||''); return s.length > n ? s.slice(0,n)+'…' : s; }
+
+  function formatUptime(secs) {
+    if (!secs) return '0s';
+    const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  function toast(msg, type='ok') {
+    const wrap = document.getElementById('toastWrap');
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `<span>${type==='ok'?'✓':'✕'}</span> ${msg}`;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  // Init
+  fetchStats();
+  fetchMessages();
+  autoRefresh = setInterval(() => { fetchStats(); fetchMessages(); }, 15000);
+</script>
+</body>
+</html>
