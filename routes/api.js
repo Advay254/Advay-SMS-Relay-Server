@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const queue = require('../queue');
-const { requireApiKey } = require('./auth');
+const { requireApiKey, requireLogin } = require('./auth');
 
 // Sanitize input — strip null bytes, trim, limit length
 function sanitize(val, maxLen = 4000) {
@@ -86,7 +86,6 @@ router.post('/reply', requireApiKey, async (req, res) => {
 });
 
 // ─── GET /api/pending-replies  (MacroDroid polls for queued replies) ──────────
-// Alternative delivery: MacroDroid can poll instead of receive webhooks
 router.get('/pending-replies', requireApiKey, async (req, res) => {
   try {
     const pending = await db.getPendingMessages('outbound');
@@ -129,7 +128,6 @@ router.get('/health', async (req, res) => {
 });
 
 // ─── UI data endpoints (session-protected) ────────────────────────────────────
-const { requireLogin } = require('./auth');
 
 router.get('/ui/messages', requireLogin, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 100, 500);
@@ -165,6 +163,15 @@ router.post('/ui/settings', requireLogin, async (req, res) => {
   if (typeof value !== 'string') return res.status(400).json({ error: 'Invalid value' });
   await db.setSetting(sanitize(key, 50), sanitize(value, 2000));
   res.json({ ok: true });
+});
+
+// ─── GET /api/ui/apikey  (returns API key to authenticated admin) ─────────────
+// Safe to expose: only reachable by a logged-in session. The key is already
+// known to whoever configured the Render env var — this just saves a trip there.
+router.get('/ui/apikey', requireLogin, (req, res) => {
+  const key = process.env.API_KEY || null;
+  if (!key) return res.status(404).json({ error: 'API_KEY env variable not set' });
+  res.json({ key });
 });
 
 module.exports = router;
