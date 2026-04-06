@@ -20,7 +20,9 @@ app.use(express.json({ limit: '64kb' }));
 app.use(express.urlencoded({ extended: false, limit: '64kb' }));
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────
-app.use(session({
+// Use connect-pg-simple in production to avoid MemoryStore memory leaks.
+// Falls back to MemoryStore in development for simplicity.
+const sessionOptions = {
   secret: process.env.SESSION_SECRET || 'change-me-in-prod',
   resave: false,
   saveUninitialized: false,
@@ -30,7 +32,18 @@ app.use(session({
     maxAge: 8 * 60 * 60 * 1000, // 8 hours
     sameSite: 'strict',
   },
-}));
+};
+
+if (process.env.NODE_ENV === 'production') {
+  const pgSession = require('connect-pg-simple')(session);
+  sessionOptions.store = new pgSession({
+    pool: db.pool,
+    tableName: 'session',
+    createTableIfMissing: true,
+  });
+}
+
+app.use(session(sessionOptions));
 
 // ─── Global rate limiter ──────────────────────────────────────────────────────
 app.use(rateLimit({

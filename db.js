@@ -1,11 +1,29 @@
 // db.js — PostgreSQL via Supabase, auto-creates tables on first run
 const { Pool } = require('pg');
 
+// ─── SSL fix ──────────────────────────────────────────────────────────────────
+// Newer pg-connection-string (v3+) / pg (v9+) treats sslmode=require as
+// verify-full, which rejects Supabase's self-signed pooler certificates.
+// We strip sslmode from the URL entirely and set ssl via the Pool option so
+// rejectUnauthorized: false takes effect without interference.
+function buildConnectionString(url) {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.delete('sslmode');
+    return u.toString();
+  } catch {
+    // Fallback regex strip for non-standard URL formats
+    return url
+      .replace(/[?&]sslmode=[^&]*/g, '')
+      .replace(/\?$/, '')
+      .replace(/&&/g, '&');
+  }
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('supabase')
-    ? { rejectUnauthorized: false }
-    : false,
+  connectionString: buildConnectionString(process.env.DATABASE_URL),
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
 });
 
 const SCHEMA = `
