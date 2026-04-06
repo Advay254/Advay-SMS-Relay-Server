@@ -1,5 +1,5 @@
 // server.js — SMS Relay Server main entry
-require('dotenv').config();
+try { require('dotenv').config(); } catch (_) { /* Render injects env vars natively */ }
 const express = require('express');
 const session = require('express-session');
 const rateLimit = require('express-rate-limit');
