@@ -16,30 +16,53 @@
   .webhook-name{font-size:15px;font-weight:600}
   .webhook-desc{font-size:12px;color:var(--muted);margin-top:2px}
   .url-field{display:flex;gap:10px;align-items:flex-end}
-  .url-field .input-wrap{flex:1}
+  .url-field .input-wrap{flex:1;min-width:0}
   .saved-ok{color:var(--accent);font-size:12px;font-family:var(--mono);animation:fadeIn .3s}
   @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
   .api-info{background:var(--bg3,#111620);border:1px solid var(--stroke);border-radius:var(--r12);padding:20px;margin-bottom:20px}
   .api-info h3{font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:14px;font-family:var(--mono)}
-  .endpoint-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--stroke)}
+  .endpoint-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--stroke);flex-wrap:wrap}
   .endpoint-row:last-child{border-bottom:none}
   .method{font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 7px;border-radius:4px;flex-shrink:0}
   .method.post{background:rgba(0,212,170,0.12);color:var(--accent)}
   .method.get{background:rgba(0,136,255,0.12);color:var(--accent2)}
-  .ep-path{font-family:var(--mono);font-size:12px;color:var(--text)}
-  .ep-desc{font-size:12px;color:var(--muted);margin-left:auto}
+  .ep-path{font-family:var(--mono);font-size:12px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ep-desc{font-size:11px;color:var(--muted);flex-shrink:0}
 
-  .copy-btn{padding:6px 12px;font-size:11px;font-family:var(--mono);cursor:pointer;border-radius:6px;border:1px solid var(--stroke);background:transparent;color:var(--muted);transition:all .2s;flex-shrink:0}
+  .copy-btn{padding:6px 12px;font-size:11px;font-family:var(--mono);cursor:pointer;border-radius:6px;border:1px solid var(--stroke);background:transparent;color:var(--muted);transition:all .2s;flex-shrink:0;white-space:nowrap}
   .copy-btn:hover{color:var(--text);border-color:var(--stroke2)}
 
-  .key-display{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,0.3);border:1px solid var(--stroke);border-radius:var(--r8);padding:10px 14px;font-family:var(--mono);font-size:12px;color:var(--muted)}
-  .key-mask{letter-spacing:0.15em;flex:1}
+  /* API Key display */
+  .key-display{
+    display:flex;align-items:center;gap:10px;
+    background:rgba(0,0,0,0.3);border:1px solid var(--stroke);
+    border-radius:var(--r8);padding:12px 14px;
+  }
+  .key-mask{
+    font-family:var(--mono);font-size:12px;color:var(--muted);
+    flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    letter-spacing:0.1em;
+  }
+  .key-actions{display:flex;gap:8px;flex-shrink:0}
+
+  @media(max-width:700px){
+    .endpoint-row{gap:8px}
+    .ep-desc{width:100%;order:4;padding-left:0}
+    .url-field{flex-direction:column;gap:8px}
+    .url-field .btn{width:100%;justify-content:center}
+    .key-display{flex-wrap:wrap}
+    .key-mask{width:100%;flex:none}
+    .key-actions{width:100%;justify-content:flex-end}
+  }
 </style>
 </head>
 <body>
 
-<nav class="sidebar">
+<!-- Mobile sidebar backdrop -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+
+<nav class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="sidebar-icon">📡</div>
     <div class="sidebar-label">SMS Relay</div>
@@ -54,6 +77,11 @@
 
 <div class="main">
   <div class="topbar">
+    <button class="hamburger" onclick="openSidebar()" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
     <div class="topbar-title">Webhook Settings</div>
     <div class="topbar-right">
       <span id="loadStatus" style="font-size:12px;color:var(--muted);font-family:var(--mono)">Loading…</span>
@@ -150,13 +178,16 @@
     <p class="section-title">API Key</p>
     <div class="card">
       <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
-        Include this key in the <code style="font-family:var(--mono);font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">x-api-key</code> header on ALL requests to this server (MacroDroid and n8n). Set via <code style="font-family:var(--mono);font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">API_KEY</code> environment variable.
+        Include this key in the <code style="font-family:var(--mono);font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">x-api-key</code> header on ALL requests to this server (MacroDroid and n8n).
       </p>
       <div class="key-display">
         <div class="key-mask" id="keyDisplay">••••••••••••••••••••••••••••••••</div>
-        <button class="copy-btn" onclick="toggleKey()" id="toggleBtn">Show</button>
-        <button class="copy-btn" onclick="copyKey()">Copy</button>
+        <div class="key-actions">
+          <button class="copy-btn" onclick="toggleKey()" id="toggleBtn">Show</button>
+          <button class="copy-btn" onclick="copyKey()" id="copyKeyBtn">Copy</button>
+        </div>
       </div>
+      <p style="font-size:11px;color:var(--muted2);margin-top:10px">Set via <code style="font-family:var(--mono);font-size:11px">API_KEY</code> environment variable on Render.</p>
     </div>
   </div>
 </div>
@@ -165,8 +196,19 @@
 
 <script>
   let keyVisible = false;
-  const apiKey = '••••••••••••••••••••••••••••••••'; // never expose via DOM — user must check env
+  let cachedKey = null; // fetched once, cached in memory only
 
+  // ── Sidebar ──────────────────────────────────────────────────────────
+  function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebarBackdrop').classList.add('open');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarBackdrop').classList.remove('open');
+  }
+
+  // ── Settings ─────────────────────────────────────────────────────────
   async function loadSettings() {
     try {
       const r = await fetch('/api/ui/settings');
@@ -185,10 +227,7 @@
   async function save(key, inputId, savedId) {
     const val = document.getElementById(inputId).value.trim();
     if (!val) { toast('URL cannot be empty', 'err'); return; }
-    try {
-      new URL(val); // validate URL
-    } catch { toast('Invalid URL format', 'err'); return; }
-
+    try { new URL(val); } catch { toast('Invalid URL format', 'err'); return; }
     try {
       const r = await fetch('/api/ui/settings', {
         method: 'POST',
@@ -206,18 +245,51 @@
     } catch { toast('Network error', 'err'); }
   }
 
-  function toggleKey() {
+  // ── API Key reveal / copy ────────────────────────────────────────────
+  async function fetchKey() {
+    if (cachedKey) return cachedKey;
+    try {
+      const r = await fetch('/api/ui/apikey');
+      if (!r.ok) throw new Error('unauthorized');
+      const d = await r.json();
+      cachedKey = d.key || null;
+      return cachedKey;
+    } catch {
+      toast('Could not load API key', 'err');
+      return null;
+    }
+  }
+
+  async function toggleKey() {
     keyVisible = !keyVisible;
     const el = document.getElementById('keyDisplay');
     const btn = document.getElementById('toggleBtn');
-    el.textContent = keyVisible ? '(Set via API_KEY env variable — never exposed here for security)' : '••••••••••••••••••••••••••••••••';
-    btn.textContent = keyVisible ? 'Hide' : 'Show';
+    if (keyVisible) {
+      const key = await fetchKey();
+      el.textContent = key || '(not set)';
+      el.style.letterSpacing = '0.05em';
+      btn.textContent = 'Hide';
+    } else {
+      el.textContent = '••••••••••••••••••••••••••••••••';
+      el.style.letterSpacing = '0.1em';
+      btn.textContent = 'Show';
+    }
   }
 
-  function copyKey() {
-    toast('API key is set via API_KEY env variable — copy from your Render dashboard', 'ok');
+  async function copyKey() {
+    const key = await fetchKey();
+    if (!key) return;
+    try {
+      await navigator.clipboard.writeText(key);
+      toast('API key copied to clipboard ✓', 'ok');
+    } catch {
+      // Fallback: show it so user can copy manually
+      if (!keyVisible) await toggleKey();
+      toast('Long-press the key to copy manually', 'ok');
+    }
   }
 
+  // ── Endpoint copy ────────────────────────────────────────────────────
   function copyEndpoint(path) {
     const full = window.location.origin + path;
     navigator.clipboard.writeText(full).then(() => toast('Copied: ' + full, 'ok'));

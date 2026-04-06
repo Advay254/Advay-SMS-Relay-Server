@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="/shared.css"/>
 <style>
   .msg-row td{vertical-align:top}
-  .msg-dir{width:80px}
-  .msg-body{max-width:340px;word-break:break-word;color:var(--text)!important;line-height:1.45}
+  .msg-dir{width:70px}
+  .msg-body{max-width:300px;word-break:break-word;color:var(--text)!important;line-height:1.45}
   .msg-phone{font-family:var(--mono);font-size:11px}
   .msg-time{font-family:var(--mono);font-size:11px;white-space:nowrap}
 
@@ -18,20 +18,32 @@
   .live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 6px var(--accent)}50%{opacity:0.4;box-shadow:none}}
 
-  .filter-bar{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
-  .filter-btn{padding:6px 14px;border-radius:999px;font-size:12px;font-weight:600;font-family:var(--mono);cursor:pointer;border:1px solid var(--stroke);background:transparent;color:var(--muted);transition:all .2s}
+  .filter-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+  .msg-log-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+  .filter-btn{padding:5px 12px;border-radius:999px;font-size:11px;font-weight:600;font-family:var(--mono);cursor:pointer;border:1px solid var(--stroke);background:transparent;color:var(--muted);transition:all .2s}
   .filter-btn.active{background:rgba(0,212,170,0.1);color:var(--accent);border-color:rgba(0,212,170,0.25)}
   .filter-btn:hover:not(.active){color:var(--text);border-color:var(--stroke2)}
 
-  .empty{text-align:center;padding:60px 20px;color:var(--muted2);font-size:13px}
-  .empty-icon{font-size:40px;margin-bottom:12px}
+  .empty{text-align:center;padding:50px 20px;color:var(--muted2);font-size:13px}
+  .empty-icon{font-size:36px;margin-bottom:12px}
 
-  .retry-badge{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,184,48,0.1);color:var(--warn);font-family:var(--mono);margin-left:6px}
+  .retry-badge{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(255,184,48,0.1);color:var(--warn);font-family:var(--mono);margin-left:4px}
+
+  @media(max-width:700px){
+    .msg-log-header{flex-direction:column}
+    .filter-bar{margin-bottom:0}
+    /* hide less-important columns on mobile */
+    .col-name,.col-time{display:none}
+    th.col-name,th.col-time{display:none}
+  }
 </style>
 </head>
 <body>
 
-<nav class="sidebar">
+<!-- Mobile sidebar backdrop -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+
+<nav class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="sidebar-icon">📡</div>
     <div class="sidebar-label">SMS Relay</div>
@@ -46,10 +58,15 @@
 
 <div class="main">
   <div class="topbar">
+    <button class="hamburger" onclick="openSidebar()" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
     <div class="topbar-title">Dashboard</div>
     <div class="topbar-right">
       <div class="live-indicator"><div class="live-dot"></div>LIVE</div>
-      <button class="btn btn-ghost" onclick="refresh()" style="font-size:12px;padding:7px 14px">↻ Refresh</button>
+      <button class="btn btn-ghost" onclick="refresh()" style="font-size:12px;padding:7px 12px">↻ Refresh</button>
     </div>
   </div>
 
@@ -90,9 +107,9 @@
     </div>
 
     <!-- Message log -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div class="msg-log-header">
       <p class="section-title" style="margin-bottom:0">Message Log</p>
-      <div class="filter-bar" style="margin-bottom:0">
+      <div class="filter-bar">
         <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
         <button class="filter-btn" onclick="setFilter('inbound',this)">Inbound</button>
         <button class="filter-btn" onclick="setFilter('outbound',this)">Outbound</button>
@@ -106,12 +123,12 @@
         <table>
           <thead>
             <tr>
-              <th>Direction</th>
+              <th>Dir</th>
               <th>Phone</th>
-              <th>Name</th>
+              <th class="col-name">Name</th>
               <th>Message</th>
               <th>Status</th>
-              <th>Time</th>
+              <th class="col-time">Time</th>
             </tr>
           </thead>
           <tbody id="msgTable">
@@ -130,6 +147,17 @@
   let currentFilter = 'all';
   let autoRefresh;
 
+  // ── Sidebar ──────────────────────────────────────────────────────────
+  function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebarBackdrop').classList.add('open');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarBackdrop').classList.remove('open');
+  }
+
+  // ── Data ─────────────────────────────────────────────────────────────
   async function fetchStats() {
     try {
       const r = await fetch('/api/ui/stats');
@@ -137,16 +165,12 @@
       const d = await r.json();
       const ib = d.queue?.inbound || {};
       const ob = d.queue?.outbound || {};
-      const allFailed = (ib.failed||0) + (ob.failed||0);
-      const allFwd = (ib.forwarded||0);
-      const allDel = (ob.delivered||0);
-
-      setText('sPendIn', ib.pending || 0);
-      setText('sPendOut', ob.pending || 0);
-      setText('sForwarded', allFwd);
-      setText('sDelivered', allDel);
-      setText('sFailed', allFailed);
-      setText('sUptime', formatUptime(d.uptime));
+      setText('sPendIn',   ib.pending   || 0);
+      setText('sPendOut',  ob.pending   || 0);
+      setText('sForwarded', ib.forwarded || 0);
+      setText('sDelivered', ob.delivered || 0);
+      setText('sFailed',   (ib.failed||0) + (ob.failed||0));
+      setText('sUptime',   formatUptime(d.uptime));
     } catch(e) { console.warn('stats err', e) }
   }
 
@@ -160,11 +184,10 @@
   }
 
   function renderTable() {
-    const filter = currentFilter;
     const rows = allMessages.filter(m => {
-      if (filter === 'all') return true;
-      if (filter === 'inbound' || filter === 'outbound') return m.direction === filter;
-      return m.status === filter;
+      if (currentFilter === 'all') return true;
+      if (currentFilter === 'inbound' || currentFilter === 'outbound') return m.direction === currentFilter;
+      return m.status === currentFilter;
     });
 
     const tbody = document.getElementById('msgTable');
@@ -180,8 +203,8 @@
 
       const statusBadge = {
         pending:   `<span class="badge badge-warn">pending</span>`,
-        forwarded: `<span class="badge badge-ok">forwarded</span>`,
-        delivered: `<span class="badge badge-ok">delivered</span>`,
+        forwarded: `<span class="badge badge-ok">fwd</span>`,
+        delivered: `<span class="badge badge-ok">sent</span>`,
         failed:    `<span class="badge badge-err">failed</span>`,
       }[m.status] || `<span class="badge badge-muted">${esc(m.status)}</span>`;
 
@@ -194,10 +217,10 @@
       return `<tr class="msg-row">
         <td class="msg-dir">${dirBadge}</td>
         <td><span class="msg-phone">${esc(masked)}</span></td>
-        <td><span style="font-size:12px;color:var(--muted)">${esc(m.name||'—')}</span></td>
-        <td><div class="msg-body">${esc(truncate(m.message,120))}</div></td>
+        <td class="col-name"><span style="font-size:12px;color:var(--muted)">${esc(m.name||'—')}</span></td>
+        <td><div class="msg-body">${esc(truncate(m.message,100))}</div></td>
         <td>${statusBadge}${retryBadge}</td>
-        <td><span class="msg-time">${esc(timeStr)}</span></td>
+        <td class="col-time"><span class="msg-time">${esc(timeStr)}</span></td>
       </tr>`;
     }).join('');
   }
